@@ -6,12 +6,14 @@
  * You can find these in Firebase Console -> Project Settings -> General -> Your Apps.
  */
 
+// dashboard/config.js
 export const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
-  databaseURL: "YOUR_FIREBASE_DATABASE_URL",
-  projectId: "YOUR_FIREBASE_PROJECT_ID",
-  storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID",
-  appId: "YOUR_FIREBASE_APP_ID"
+  apiKey: "AIzaSyBalgGmBMymv4pHULJZO8LMSX55V0ld4us",
+  authDomain: "smart-power-management-s-7dc60.firebaseapp.com",
+  databaseURL: "https://smart-power-management-s-7dc60-default-rtdb.firebaseio.com",
+  projectId: "smart-power-management-s-7dc60",
+  storageBucket: "smart-power-management-s-7dc60.firebasestorage.app",
+  messagingSenderId: "358375534458",
+  appId: "1:358375534458:web:aa3f9f17237ff53a4e70c3"
 };
+
