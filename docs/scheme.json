@@ -1,0 +1,60 @@
+{
+    "areas": {
+        "guntur_node1": {
+            "status": "UP",
+            "last_updated": 1730000000,
+            "maintenance_flag": false
+        },
+        "pedaparimi_node1": {
+            "status": "UP",
+            "last_updated": 1730000000,
+            "maintenance_flag": false
+        },
+        "namburu_node1": {
+            "status": "UP",
+            "last_updated": 1730000000,
+            "maintenance_flag": false
+        }
+    },
+    "residents": {
+        "guntur_node1": [
+            "+916305551412"
+        ],
+        "pedaparimi_node1": [
+            "+916305551412"
+        ],
+        "namburu_node1": [
+            "+916305551412"
+        ]
+    },
+    "commands": {
+        "guntur_node1": {
+            "pending": false,
+            "message_type": "",
+            "resident_message": "",
+            "resident_numbers": [],
+            "staff_message": "",
+            "staff_number": "",
+            "created_at": 0
+        },
+        "pedaparimi_node1": {
+            "pending": false,
+            "message_type": "",
+            "resident_message": "",
+            "resident_numbers": [],
+            "staff_message": "",
+            "staff_number": "",
+            "created_at": 0
+        },
+        "namburu_node1": {
+            "pending": false,
+            "message_type": "",
+            "resident_message": "",
+            "resident_numbers": [],
+            "staff_message": "",
+            "staff_number": "",
+            "created_at": 0
+        }
+    },
+    "events": {}
+}

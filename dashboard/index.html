@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Power Management - Real-Time Dashboard</title>
+  
+  <!-- Modern Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- Top Header -->
+    <header>
+      <div class="logo-group">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M13 2L3 14h7v8l10-12h-7z"/>
+          </svg>
+        </div>
+        <div class="title-area">
+          <h1>Smart Power Management</h1>
+          <p>Real-Time Localised Outage & Maintenance Dashboard</p>
+        </div>
+      </div>
+
+      <div class="system-status-badge">
+        <span class="status-dot-pulse" id="connection-dot"></span>
+        <span id="connection-text">Connecting to Firebase...</span>
+      </div>
+    </header>
+
+    <!-- Firebase Config Warning Banner (Hidden once config is valid) -->
+    <div id="config-warning" class="config-banner hidden">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <div>
+        <strong>Firebase Configuration Required:</strong> Please replace the placeholders in <code>dashboard/config.js</code> with your actual Firebase Realtime Database credentials.
+      </div>
+    </div>
+
+    <!-- Overview Metrics Bar -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Monitored Localities</div>
+        <div class="metric-value" id="metric-total">3</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Normal Operations</div>
+        <div class="metric-value" style="color: var(--color-online);" id="metric-online">3</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Active Outages</div>
+        <div class="metric-value" style="color: var(--color-offline);" id="metric-outages">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Scheduled Maintenance</div>
+        <div class="metric-value" style="color: var(--color-maintenance);" id="metric-maintenance">0</div>
+      </div>
+    </section>
+
+    <!-- Area Status Cards Grid -->
+    <main class="cards-grid" id="cards-container">
+      
+      <!-- Guntur Node Card -->
+      <article class="area-card status-up" id="card-guntur_node1">
+        <div class="card-header">
+          <div>
+            <h2 class="area-title">Guntur Locality</h2>
+            <span class="node-id">guntur_node1</span>
+          </div>
+          <span class="status-badge online" id="badge-guntur_node1">ONLINE</span>
+        </div>
+        
+        <div class="card-info">
+          <div class="info-row">
+            <span class="info-label">Power Supply State</span>
+            <span class="info-value" id="status-guntur_node1">UP</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Maintenance Mode</span>
+            <span class="maint-tag inactive" id="maint-tag-guntur_node1">Inactive</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Last Status Update</span>
+            <span class="info-value" id="time-guntur_node1">--</span>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button class="btn btn-maintenance" id="btn-maint-guntur_node1" onclick="toggleMaintenance('guntur_node1')">
+            ⚙️ Mark as Scheduled Maintenance
+          </button>
+          
+          <!-- DEV ONLY CONTROLS START -->
+          <!-- To remove all test outage triggers before production, delete this block -->
+          <div class="dev-only-container" id="dev-controls-guntur_node1">
+            <button class="btn btn-dev-simulate" id="btn-outage-guntur_node1" onclick="simulateOutage('guntur_node1')">
+              ⚡ Simulate Outage <span class="dev-tag">DEV ONLY</span>
+            </button>
+          </div>
+          <!-- DEV ONLY CONTROLS END -->
+        </div>
+      </article>
+
+      <!-- Pedaparimi Node Card -->
+      <article class="area-card status-up" id="card-pedaparimi_node1">
+        <div class="card-header">
+          <div>
+            <h2 class="area-title">Pedaparimi Locality</h2>
+            <span class="node-id">pedaparimi_node1</span>
+          </div>
+          <span class="status-badge online" id="badge-pedaparimi_node1">ONLINE</span>
+        </div>
+        
+        <div class="card-info">
+          <div class="info-row">
+            <span class="info-label">Power Supply State</span>
+            <span class="info-value" id="status-pedaparimi_node1">UP</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Maintenance Mode</span>
+            <span class="maint-tag inactive" id="maint-tag-pedaparimi_node1">Inactive</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Last Status Update</span>
+            <span class="info-value" id="time-pedaparimi_node1">--</span>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button class="btn btn-maintenance" id="btn-maint-pedaparimi_node1" onclick="toggleMaintenance('pedaparimi_node1')">
+            ⚙️ Mark as Scheduled Maintenance
+          </button>
+          
+          <!-- DEV ONLY CONTROLS START -->
+          <!-- To remove all test outage triggers before production, delete this block -->
+          <div class="dev-only-container" id="dev-controls-pedaparimi_node1">
+            <button class="btn btn-dev-simulate" id="btn-outage-pedaparimi_node1" onclick="simulateOutage('pedaparimi_node1')">
+              ⚡ Simulate Outage <span class="dev-tag">DEV ONLY</span>
+            </button>
+          </div>
+          <!-- DEV ONLY CONTROLS END -->
+        </div>
+      </article>
+
+      <!-- Namburu Node Card -->
+      <article class="area-card status-up" id="card-namburu_node1">
+        <div class="card-header">
+          <div>
+            <h2 class="area-title">Namburu Locality</h2>
+            <span class="node-id">namburu_node1</span>
+          </div>
+          <span class="status-badge online" id="badge-namburu_node1">ONLINE</span>
+        </div>
+        
+        <div class="card-info">
+          <div class="info-row">
+            <span class="info-label">Power Supply State</span>
+            <span class="info-value" id="status-namburu_node1">UP</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Maintenance Mode</span>
+            <span class="maint-tag inactive" id="maint-tag-namburu_node1">Inactive</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Last Status Update</span>
+            <span class="info-value" id="time-namburu_node1">--</span>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button class="btn btn-maintenance" id="btn-maint-namburu_node1" onclick="toggleMaintenance('namburu_node1')">
+            ⚙️ Mark as Scheduled Maintenance
+          </button>
+          
+          <!-- DEV ONLY CONTROLS START -->
+          <!-- To remove all test outage triggers before production, delete this block -->
+          <div class="dev-only-container" id="dev-controls-namburu_node1">
+            <button class="btn btn-dev-simulate" id="btn-outage-namburu_node1" onclick="simulateOutage('namburu_node1')">
+              ⚡ Simulate Outage <span class="dev-tag">DEV ONLY</span>
+            </button>
+          </div>
+          <!-- DEV ONLY CONTROLS END -->
+        </div>
+      </article>
+
+    </main>
+
+    <footer>
+      Smart Power Management System &bull; Phase 2 Prototype Dashboard &bull; Solo Build by V Sujay Krishna
+    </footer>
+  </div>
+
+  <!-- Load Dashboard Logic (ES Module) -->
+  <script type="module" src="app.js"></script>
+
+</body>
+</html>
