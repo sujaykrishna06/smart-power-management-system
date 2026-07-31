@@ -10,8 +10,7 @@ import {
   getDatabase, 
   ref, 
   onValue, 
-  update, 
-  serverTimestamp 
+  update 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 import { firebaseConfig } from "./config.js";
@@ -31,6 +30,7 @@ let db = null;
 function initDashboard() {
   const warningBanner = document.getElementById("config-warning");
   const connText = document.getElementById("connection-text");
+  const dot = document.getElementById("connection-dot");
 
   // Check if user has replaced placeholder keys
   if (
@@ -53,12 +53,15 @@ function initDashboard() {
     onValue(connectedRef, (snap) => {
       const isConnected = snap.val() === true;
       if (connText) {
-        connText.textContent = isConnected ? "Live Connected" : "Disconnected";
+        connText.textContent = isConnected ? "Live Connected" : "Connecting to Firebase...";
       }
-      const dot = document.getElementById("connection-dot");
       if (dot) {
-        dot.style.backgroundColor = isConnected ? "var(--color-online)" : "var(--color-offline)";
+        dot.style.backgroundColor = isConnected ? "var(--color-online)" : "var(--color-maintenance)";
       }
+    }, (err) => {
+      console.error("Connection status error:", err);
+      if (connText) connText.textContent = "Connection Error";
+      if (dot) dot.style.backgroundColor = "var(--color-offline)";
     });
 
     // Listen for Real-Time Changes on 'areas/' node
@@ -73,10 +76,14 @@ function initDashboard() {
           }
         });
         updateMetricsSummary();
+      } else {
+        console.warn("No data under 'areas' node yet in Realtime Database.");
       }
     }, (error) => {
       console.error("Firebase Database read error:", error);
-      if (connText) connText.textContent = "Database Error";
+      if (connText) connText.textContent = "Permission Denied / Rules Error";
+      if (dot) dot.style.backgroundColor = "var(--color-offline)";
+      alert("Firebase Permission Denied! Check your Realtime Database Rules in Firebase Console.\nEnsure .read and .write are set to true for testing.");
     });
 
   } catch (err) {
@@ -199,7 +206,7 @@ function updateMetricsSummary() {
  */
 window.toggleMaintenance = function(areaId) {
   if (!db) {
-    alert("Firebase Database is not connected. Please verify dashboard/config.js.");
+    alert("Firebase Database is not initialized. Please ensure you open the dashboard via http://localhost:3000 and check dashboard/config.js.");
     return;
   }
 
@@ -213,7 +220,7 @@ window.toggleMaintenance = function(areaId) {
     console.log(`[Firebase] Successfully updated maintenance_flag to ${newFlag} for ${areaId}`);
   }).catch((err) => {
     console.error(`[Firebase] Error updating maintenance_flag for ${areaId}:`, err);
-    alert("Failed to update maintenance flag in Firebase: " + err.message);
+    alert("Failed to update maintenance flag in Firebase: " + err.message + "\nCheck Firebase Database Rules!");
   });
 };
 
@@ -226,7 +233,7 @@ window.toggleMaintenance = function(areaId) {
  */
 window.simulateOutage = function(areaId) {
   if (!db) {
-    alert("Firebase Database is not connected. Please verify dashboard/config.js.");
+    alert("Firebase Database is not initialized. Please ensure you open the dashboard via http://localhost:3000 and check dashboard/config.js.");
     return;
   }
 
@@ -242,7 +249,7 @@ window.simulateOutage = function(areaId) {
     console.log(`[DEV ONLY] Simulated status change to '${newStatus}' for ${areaId}`);
   }).catch((err) => {
     console.error(`[DEV ONLY] Error simulating status change for ${areaId}:`, err);
-    alert("Failed to update status in Firebase: " + err.message);
+    alert("Failed to update status in Firebase: " + err.message + "\nCheck Firebase Database Rules!");
   });
 };
 /* DEV ONLY CONTROLS END */
