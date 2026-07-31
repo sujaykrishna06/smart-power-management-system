@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment & Secrets
+.env
+*.env
+
+# Credentials & Service Account Files
+*serviceAccount*.json
+*credentials*.json
+
+# Firmware Config & WiFi Credentials
+*secrets*.h
+*credentials*.h
+wifi_config.h
+config.h
+
+# OS / Editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
