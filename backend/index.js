@@ -1,7 +1,8 @@
 /**
  * ============================================================================
- * SMART POWER MANAGEMENT SYSTEM - BACKEND DECISION ENGINE (PHASE 3)
+ * SMART POWER MANAGEMENT SYSTEM - BACKEND DECISION & COMMAND ENGINE (PHASE 4)
  * Node.js Listener using Firebase Admin SDK
+ * Writes SMS job objects to commands/{area_id} for ESP32 consumption
  * ============================================================================
  */
 
@@ -26,7 +27,6 @@ if (fs.existsSync(rootEnvPath)) {
 // 1. FIREBASE SERVICE ACCOUNT & INITIALIZATION
 // ----------------------------------------------------------------------------
 
-// Supported service account file locations
 const candidatePaths = [
   path.join(__dirname, 'serviceAccountKey.json'),
   path.join(__dirname, '..', 'serviceAccountKey.json'),
@@ -39,13 +39,8 @@ if (!serviceAccountPath) {
   console.error('\n================================================================');
   console.error('❌ ERROR: Firebase Service Account file missing!');
   console.error('----------------------------------------------------------------');
-  console.error('Please download your Service Account JSON file from Firebase Console:');
-  console.error('  1. Go to Firebase Console -> Project Settings -> Service accounts');
-  console.error('  2. Click "Generate new private key"');
-  console.error('  3. Save the downloaded JSON file as:');
-  console.error(`     ${path.join(__dirname, 'serviceAccountKey.json')}`);
-  console.error('----------------------------------------------------------------');
-  console.error('✅ Covered by .gitignore: serviceAccountKey.json is safe & git-ignored.');
+  console.error('Please download your Service Account JSON file from Firebase Console');
+  console.error(`and save it as: ${path.join(__dirname, 'serviceAccountKey.json')}`);
   console.error('================================================================\n');
   process.exit(1);
 }
@@ -53,11 +48,10 @@ if (!serviceAccountPath) {
 const databaseURL = process.env.FIREBASE_DATABASE_URL;
 
 if (!databaseURL) {
-  console.error('❌ ERROR: FIREBASE_DATABASE_URL is missing from environment variables / .env file.');
+  console.error('❌ ERROR: FIREBASE_DATABASE_URL is missing from .env file.');
   process.exit(1);
 }
 
-// Initialize Firebase Admin App
 const serviceAccount = require(serviceAccountPath);
 
 admin.initializeApp({
@@ -68,25 +62,88 @@ admin.initializeApp({
 const db = admin.database();
 console.log('✅ Firebase Admin SDK initialized successfully.');
 console.log(`📡 Connected to Database: ${databaseURL}`);
-console.log(`🔑 Service Account loaded from: ${serviceAccountPath}\n`);
+console.log(`📱 Staff Phone Number configured: ${process.env.STAFF_PHONE_NUMBER || '(not set in .env)'}\n`);
 
 // ----------------------------------------------------------------------------
 // 2. DECISION ENGINE STATE & TIMERS
 // ----------------------------------------------------------------------------
 
-// Tracks running 30-second timers per area
-// Structure: { [areaId]: TimeoutObject }
 const activeTimers = {};
-
-// Tracks previous state of each area for transition detection
-// Structure: { [areaId]: { status: 'UP'|'DOWN', maintenance_flag: boolean } }
 const previousStates = {};
-
 let isInitialLoad = true;
-const TIMER_DURATION_MS = 30000; // 30 seconds for prototype (10 mins in production)
+const TIMER_DURATION_MS = 30000; // 30 seconds for demo (10 mins in production)
 
 // ----------------------------------------------------------------------------
-// 3. DATABASE LISTENER & DECISION LOGIC
+// 3. SMS COMMAND QUEUE WRITER
+// ----------------------------------------------------------------------------
+
+/**
+ * Writes a full job object to commands/{area_id} in Firebase RTDB
+ * @param {string} areaId - e.g. "guntur_node1"
+ * @param {string} messageType - "MAINTENANCE" | "FAULT"
+ */
+async function writeSmsCommandJob(areaId, messageType) {
+  try {
+    // Pull resident phone numbers from residents/{area_id}
+    const residentsSnap = await db.ref(`residents/${areaId}`).once('value');
+    let residentNumbers = residentsSnap.val();
+
+    if (!Array.isArray(residentNumbers)) {
+      if (typeof residentNumbers === 'string') {
+        residentNumbers = [residentNumbers];
+      } else if (residentNumbers && typeof residentNumbers === 'object') {
+        residentNumbers = Object.values(residentNumbers);
+      } else {
+        residentNumbers = [];
+      }
+    }
+
+    const staffNumber = process.env.STAFF_PHONE_NUMBER || "";
+    const nowTimestamp = Math.floor(Date.now() / 1000);
+
+    let residentMessage = "";
+    let staffMessage = "";
+
+    if (messageType === 'MAINTENANCE') {
+      residentMessage = "There's maintenance work going on in your area. Please hang on till it's fixed. If this isn't the case, please ignore this message.";
+      staffMessage = "";
+    } else if (messageType === 'FAULT') {
+      residentMessage = "Power outage detected in your locality. Our technical team has been notified.";
+      staffMessage = `URGENT FAULT ALERT: Unacknowledged power outage detected at locality [${areaId}] at ${new Date().toLocaleTimeString()}. Please inspect immediately.`;
+    }
+
+    const commandObj = {
+      pending: true,
+      message_type: messageType,
+      resident_message: residentMessage,
+      resident_numbers: residentNumbers,
+      staff_message: staffMessage,
+      staff_number: staffNumber,
+      created_at: nowTimestamp
+    };
+
+    // Write job object to commands/{area_id}
+    await db.ref(`commands/${areaId}`).set(commandObj);
+    console.log(`✉️  [COMMAND QUEUED] Successfully written to commands/${areaId}:`, {
+      type: messageType,
+      residentsCount: residentNumbers.length,
+      hasStaffAlert: Boolean(staffMessage),
+      pending: true
+    });
+
+    // Optional event history log
+    await db.ref(`events/${areaId}`).push({
+      type: `${messageType}_ALERT`,
+      timestamp: nowTimestamp
+    });
+
+  } catch (err) {
+    console.error(`❌ [COMMAND WRITE ERROR] Failed to write SMS job to commands/${areaId}:`, err.message);
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 4. DATABASE LISTENER & DECISION ENGINE
 // ----------------------------------------------------------------------------
 
 const areasRef = db.ref('areas');
@@ -95,12 +152,9 @@ console.log('👀 Listening for power status changes under "areas/*/status"...\n
 
 areasRef.on('value', (snapshot) => {
   const areasData = snapshot.val();
-  if (!areasData) {
-    console.warn('⚠️ No data found under "areas" node in database.');
-    return;
-  }
+  if (!areasData) return;
 
-  // On first load, record initial state without triggering false alerts
+  // On initial load, record state without firing false alerts
   if (isInitialLoad) {
     Object.keys(areasData).forEach((areaId) => {
       previousStates[areaId] = {
@@ -110,7 +164,7 @@ areasRef.on('value', (snapshot) => {
       console.log(`ℹ️ [INITIAL STATE] ${areaId} -> Status: ${previousStates[areaId].status}, Maintenance: ${previousStates[areaId].maintenance_flag}`);
     });
     isInitialLoad = false;
-    console.log('\n🟢 Decision engine ready and active.\n');
+    console.log('\n🟢 Decision engine & SMS queue writer ready.\n');
     return;
   }
 
@@ -126,7 +180,7 @@ areasRef.on('value', (snapshot) => {
     const statusChanged = currentState.status !== prevState.status;
     const maintenanceChanged = currentState.maintenance_flag !== prevState.maintenance_flag;
 
-    // UPDATE RECORDED STATE
+    // Update state cache
     previousStates[areaId] = currentState;
 
     // CASE A: Status flipped to DOWN (Outage Detected)
@@ -134,19 +188,16 @@ areasRef.on('value', (snapshot) => {
       console.log(`\n🔴 [OUTAGE DETECTED] Power lost for locality: [${areaId}]`);
 
       if (currentState.maintenance_flag) {
-        // Option 1: Maintenance already flagged before outage
-        console.log(`📋 [DECISION] MAINTENANCE decision for [${areaId}] (Scheduled work in progress)`);
+        console.log(`📋 [DECISION] MAINTENANCE decision for [${areaId}]`);
+        writeSmsCommandJob(areaId, 'MAINTENANCE');
       } else {
-        // Option 2: Not flagged -> start 30s timer
         console.log(`⏱️  [TIMER STARTED] 30-second countdown started for [${areaId}]. Waiting for maintenance flag...`);
 
-        // Cancel existing timer if one was somehow running
         if (activeTimers[areaId]) {
           clearTimeout(activeTimers[areaId]);
         }
 
         activeTimers[areaId] = setTimeout(() => {
-          // Re-fetch current database state at timer expiration
           areasRef.child(areaId).once('value', (areaSnap) => {
             const latestData = areaSnap.val() || {};
             const isNowMaintenance = Boolean(latestData.maintenance_flag);
@@ -154,9 +205,11 @@ areasRef.on('value', (snapshot) => {
 
             if (isStillDown) {
               if (isNowMaintenance) {
-                console.log(`📋 [DECISION] MAINTENANCE decision for [${areaId}] (Flagged during timer window)`);
+                console.log(`📋 [DECISION] MAINTENANCE decision for [${areaId}] (Flagged during timer)`);
+                writeSmsCommandJob(areaId, 'MAINTENANCE');
               } else {
-                console.log(`🚨 [DECISION] FAULT decision for [${areaId}] (30s timer expired without maintenance flag!)`);
+                console.log(`🚨 [DECISION] FAULT decision for [${areaId}] (30s timer expired without flag!)`);
+                writeSmsCommandJob(areaId, 'FAULT');
               }
             }
             delete activeTimers[areaId];
@@ -172,17 +225,18 @@ areasRef.on('value', (snapshot) => {
       if (activeTimers[areaId]) {
         clearTimeout(activeTimers[areaId]);
         delete activeTimers[areaId];
-        console.log(`⏹️  [TIMER CANCELLED] 30s timer cancelled for [${areaId}] because power was restored before expiration.`);
+        console.log(`⏹️  [TIMER CANCELLED] 30s timer cancelled for [${areaId}] because power was restored.`);
       }
     }
 
-    // CASE C: Maintenance flag was turned ON while outage timer was running
+    // CASE C: Maintenance flag turned ON while timer was running
     if (maintenanceChanged && currentState.maintenance_flag && currentState.status === 'DOWN') {
       if (activeTimers[areaId]) {
         clearTimeout(activeTimers[areaId]);
         delete activeTimers[areaId];
-        console.log(`⏹️  [TIMER CANCELLED] 30s timer cancelled for [${areaId}] because staff flagged maintenance.`);
-        console.log(`📋 [DECISION] MAINTENANCE decision for [${areaId}] (Maintenance mode enabled manually)`);
+        console.log(`⏹️  [TIMER CANCELLED] 30s timer cancelled for [${areaId}] because maintenance mode was enabled.`);
+        console.log(`📋 [DECISION] MAINTENANCE decision for [${areaId}]`);
+        writeSmsCommandJob(areaId, 'MAINTENANCE');
       }
     }
   });
@@ -192,7 +246,7 @@ areasRef.on('value', (snapshot) => {
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n\n👋 Shutting down backend decision listener engine...');
+  console.log('\n\n👋 Shutting down backend decision engine...');
   Object.keys(activeTimers).forEach((areaId) => clearTimeout(activeTimers[areaId]));
   process.exit(0);
 });
