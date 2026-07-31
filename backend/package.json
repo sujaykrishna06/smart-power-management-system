@@ -1,0 +1,14 @@
+{
+  "name": "smart-power-mgmt-backend",
+  "version": "1.0.0",
+  "description": "Node.js backend listener and decision engine for Smart Power Management System",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "firebase-admin": "^12.1.0"
+  }
+}
